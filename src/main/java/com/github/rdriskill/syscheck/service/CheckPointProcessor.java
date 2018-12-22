@@ -5,7 +5,9 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -40,49 +42,51 @@ public class CheckPointProcessor {
 	private NotifierGateway notifier;
 	
 	@Scheduled(initialDelay=10000, fixedRate=180000)
-	public void process() {
-		log.info("Starting check points availability.");
-		Optional.ofNullable(this.checkPoints)
-			.ifPresent(stream -> stream.forEach(checkPoint -> checkAvailable(checkPoint)));
-		log.info(String.format("Completed check points availability. %s checkpoints currently in a failed state.", this.notifier.getCheckPointsInFailure().size()));
-	}
-	
-	private void checkAvailable(CheckPoint checkPoint) {
-		try {
-			if (checkPoint.getSysCheckPointType().equals(CheckPointType.DATABASE)) {
-				Class.forName("com.mysql.jdbc.Driver");
-				
-				try (
-				    Connection conn = DriverManager.getConnection(checkPoint.getUrl(), checkPoint.getUser(), checkPoint.getPassword());
-					Statement stmt = conn.createStatement();
-				) {
-					ResultSet resultSet = stmt.executeQuery("select 1");
+	private void checkAvailability() {
+		Map<CheckPoint, String> notifyNotAvailable = new HashMap<CheckPoint, String>();
+		Set<CheckPoint> notifyAvailable = new HashSet<CheckPoint>();
+		
+		Optional.ofNullable(this.checkPoints).ifPresent(stream -> stream.forEach(checkPoint -> {
+			try {
+				if (checkPoint.getType().equals(CheckPointType.DATABASE)) {
+					Class.forName("com.mysql.jdbc.Driver");
 					
-					if (!resultSet.next() || !resultSet.getString(1).equals("1")) {
-						this.notifier.notifyNotAvailable(checkPoint, String.format("Unexpected query result for %s.", checkPoint.getName()));
-					} else {
-						this.notifier.notifyAvailable(checkPoint);
+					try (
+					    Connection conn = DriverManager.getConnection(checkPoint.getUrl(), checkPoint.getUser(), checkPoint.getPassword());
+						Statement stmt = conn.createStatement();
+					) {
+						ResultSet resultSet = stmt.executeQuery("select 1");
+						
+						if (!resultSet.next() || !resultSet.getString(1).equals("1")) {
+							notifyNotAvailable.put(checkPoint, String.format("Unexpected query result for %s.", checkPoint.getName()));
+						} else {
+							notifyAvailable.add(checkPoint);
+						}
+					} catch (Exception ex) {
+						notifyNotAvailable.put(checkPoint, String.format("Error connecting for %s: %s", checkPoint.getName(), ex.getMessage()));
 					}
-				} catch (Exception ex) {
-					this.notifier.notifyNotAvailable(checkPoint, String.format("Error connecting for %s", checkPoint.getName()));
-				}
-			} else if (checkPoint.getSysCheckPointType().equals(CheckPointType.WEB)) {
-				try {
-					HttpClient client = HttpClientBuilder.create().build(); 
-					HttpResponse response = client.execute(new HttpGet(checkPoint.getUrl()));
-				    
-					if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
-						this.notifier.notifyNotAvailable(checkPoint, String.format("Received the status code %s for %s", response.getStatusLine().getStatusCode(), checkPoint.getName()));
-					} else {
-						this.notifier.notifyAvailable(checkPoint);
+				} else if (checkPoint.getType().equals(CheckPointType.WEB)) {
+					try {
+						HttpClient client = HttpClientBuilder.create().build(); 
+						HttpResponse response = client.execute(new HttpGet(checkPoint.getUrl()));
+					    
+						if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
+							notifyNotAvailable.put(checkPoint, String.format("Received the status code %s for %s", response.getStatusLine().getStatusCode(), checkPoint.getName()));
+						} else {
+							notifyAvailable.add(checkPoint);
+						}
+					} catch (Exception ex) {
+						notifyNotAvailable.put(checkPoint, String.format("Error connecting for %s: %s", checkPoint.getName(), ex.getMessage()));
 					}
-				} catch (Exception ex) {
-					this.notifier.notifyNotAvailable(checkPoint, String.format("Error connecting for %s", checkPoint.getName()));
 				}
+			} catch (Exception ex) {
+				notifyNotAvailable.put(checkPoint, String.format("Error connecting for %s: %s", checkPoint.getName(), ex.getMessage()));
 			}
-		} catch (Exception ex) {
-			log.error(String.format("Error checking point availability for %s", checkPoint.getName()), ex);
-		}
+		}));
+		
+		this.notifier.notifyNotAvailable(notifyNotAvailable, this.checkPoints.size());
+		this.notifier.notifyAvailable(notifyAvailable);
+		log.info(String.format("Completed check point availability test. %s currently failing.", this.notifier.getCheckPointsInFailure().size()));
 	}
 
 	public void setCheckPoints(Collection<CheckPoint> checkPoints) {
@@ -104,7 +108,6 @@ public class CheckPointProcessor {
 				violations.forEach(violation -> log.error("Validation error loading checkpoints: {}", violation.getMessage()));
 			}
 		}
-		
 	}
 
 	@Autowired

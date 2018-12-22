@@ -3,6 +3,8 @@ package com.github.rdriskill.syscheck.service;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,36 +19,54 @@ import com.github.rdriskill.syscheck.model.CheckPoint;
 @Service
 public class NotifierGateway {
 	private static Logger log = LogManager.getLogger(NotifierGateway.class);
+	final Double connectionIssueThreshold = 0.50;
 	private Map<String, CheckPoint> pointsNotAvail = new HashMap<String, CheckPoint>();
 	private EmailNotifier emailNotifier;
+	private Boolean connectionIssues = Boolean.FALSE;
 	
-	public void notifyNotAvailable(CheckPoint checkPoint, String msg) {
-		if (!this.pointsNotAvail.containsKey(checkPoint.getName())) {
-			this.sendFailureAlert(checkPoint, msg);
-			this.pointsNotAvail.put(checkPoint.getName(), checkPoint);
+	public void notifyNotAvailable(Map<CheckPoint, String> notifyNotAvailable, Integer totalCheckPointCount) {
+		if (totalCheckPointCount > 0 && (notifyNotAvailable.size() / totalCheckPointCount >= connectionIssueThreshold)) {
+			String msg = String.format("%s out of %s checkpoints have failed. Either there is a connection issue or a catastrophic failure.", notifyNotAvailable.size(), totalCheckPointCount);
+			log.warn(msg);
+			
+			if (!this.connectionIssues) {
+				emailNotifier.sendEmail(msg);
+				connectionIssues = Boolean.TRUE;
+			}
+		} else {
+			if (this.connectionIssues) {
+				String msg = "A prior connection issue or catastrophic failure has recovered.";
+				log.info(msg);
+				emailNotifier.sendEmail(msg);
+				connectionIssues = Boolean.FALSE;
+			}
+			
+			Optional.ofNullable(notifyNotAvailable).ifPresent(map -> map.entrySet().forEach(entry -> {
+				CheckPoint checkPoint = entry.getKey();
+				String msg = entry.getValue();
+				
+				if (!this.pointsNotAvail.containsKey(checkPoint.getName())) {
+					log.warn(msg);
+					emailNotifier.sendEmail(msg);
+					this.pointsNotAvail.put(checkPoint.getName(), checkPoint);
+				}
+			}));
 		}
 	}
 	
-	public void notifyAvailable(CheckPoint checkPoint) {
-		if (this.pointsNotAvail.containsKey(checkPoint.getName())) {
-			this.sendRecoveryAlert(this.pointsNotAvail.get(checkPoint.getName()));
-			this.pointsNotAvail.remove(checkPoint.getName());
-		}
+	public void notifyAvailable(Set<CheckPoint> notifyAvailable) {
+		Optional.ofNullable(notifyAvailable).ifPresent(stream -> stream.forEach(checkPoint -> {
+			if (this.pointsNotAvail.containsKey(checkPoint.getName())) {
+				String msg = String.format("%s has recovered.", checkPoint.getName());
+				log.info(msg);
+				emailNotifier.sendEmail(msg);
+				this.pointsNotAvail.remove(checkPoint.getName());
+			}
+		}));
 	}
 	
 	public Collection<CheckPoint> getCheckPointsInFailure() {
 		return this.pointsNotAvail.values();
-	}
-	
-	private void sendFailureAlert(CheckPoint checkPoint, String msg) {
-		log.warn(msg);
-		emailNotifier.sendEmail(msg);
-	}
-	
-	private void sendRecoveryAlert(CheckPoint checkPoint) {
-		String msg = String.format("%s has recovered.", checkPoint.getName());
-		log.info(msg);
-		emailNotifier.sendEmail(msg);
 	}
 
 	@Autowired

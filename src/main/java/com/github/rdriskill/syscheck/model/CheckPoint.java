@@ -1,6 +1,5 @@
 package com.github.rdriskill.syscheck.model;
 
-import java.util.Date;
 import java.util.UUID;
 
 import javax.persistence.EnumType;
@@ -8,7 +7,6 @@ import javax.persistence.Enumerated;
 import javax.persistence.Id;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
-import javax.validation.constraints.PastOrPresent;
 
 /**
  * @author rdriskill
@@ -23,7 +21,7 @@ public class CheckPoint {
 	
 	@NotNull
 	@Enumerated(EnumType.STRING)
-	private CheckPointType sysCheckPointType;
+	private CheckPointType type;
 	
 	@NotBlank
 	private String url;
@@ -31,12 +29,8 @@ public class CheckPoint {
 	private String user;
 	private String password;
 	
-	@PastOrPresent
-	private Date startTime;
-	
 	public CheckPoint() {
 		this.id = UUID.randomUUID().toString();
-		this.startTime = new Date();
 	}
 
 	public String getId() {
@@ -55,12 +49,12 @@ public class CheckPoint {
 		this.name = name;
 	}
 
-	public CheckPointType getSysCheckPointType() {
-		return sysCheckPointType;
+	public CheckPointType getType() {
+		return type;
 	}
 
-	public void setSysCheckPointType(CheckPointType sysCheckPointType) {
-		this.sysCheckPointType = sysCheckPointType;
+	public void setType(CheckPointType type) {
+		this.type = type;
 	}
 
 	public String getUrl() {
@@ -85,14 +79,6 @@ public class CheckPoint {
 
 	public void setPassword(String password) {
 		this.password = password;
-	}
-
-	public Date getStartTime() {
-		return startTime;
-	}
-
-	public void setStartTime(Date startTime) {
-		this.startTime = startTime;
 	}
 
 	@Override
@@ -122,6 +108,6 @@ public class CheckPoint {
 
 	@Override
 	public String toString() {
-		return "SysCheckPoint [id=" + id + ", name=" + name + ", sysCheckPointType=" + sysCheckPointType + "]";
+		return "SysCheckPoint [id=" + id + ", name=" + name + ", sysCheckPointType=" + type + "]";
 	}
 }

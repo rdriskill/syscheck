@@ -18,14 +18,14 @@ It expects a JSON file containing resources to check. Below is an example of the
 [
     {
         "name": "Database 01",
-        "sysCheckPointType": "DATABASE",
+        "type": "DATABASE",
         "url": "jdbc:mysql://db01.example.com/db",
         "user": "dbuser",
         "password": "dbpass"    
     },
     {
         "name": "Web 01",
-        "sysCheckPointType": "WEB",
+        "type": "WEB",
         "url": "https://web01.example.com/app/serverCheck"
     }
 ]
