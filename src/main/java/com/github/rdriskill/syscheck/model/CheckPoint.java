@@ -4,7 +4,6 @@ import java.util.UUID;
 
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
-import javax.persistence.Id;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 
@@ -13,7 +12,6 @@ import javax.validation.constraints.NotNull;
  */
 public class CheckPoint {
 	
-	@Id
 	private String id;
 	
 	@NotBlank
@@ -29,8 +27,12 @@ public class CheckPoint {
 	private String user;
 	private String password;
 	
+	@NotNull
+	private Boolean enabled;
+	
 	public CheckPoint() {
 		this.id = UUID.randomUUID().toString();
+		this.enabled = Boolean.TRUE;
 	}
 
 	public String getId() {
@@ -81,6 +83,14 @@ public class CheckPoint {
 		this.password = password;
 	}
 
+	public Boolean getEnabled() {
+		return enabled;
+	}
+
+	public void setEnabled(Boolean enabled) {
+		this.enabled = enabled;
+	}
+
 	@Override
 	public int hashCode() {
 		final int prime = 31;
@@ -108,6 +118,6 @@ public class CheckPoint {
 
 	@Override
 	public String toString() {
-		return "SysCheckPoint [id=" + id + ", name=" + name + ", sysCheckPointType=" + type + "]";
+		return "SysCheckPoint [id=" + id + ", name=" + name + ", type=" + type + ", enabled=" + enabled + "]";
 	}
 }

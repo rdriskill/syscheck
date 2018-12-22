@@ -19,7 +19,7 @@ import com.github.rdriskill.syscheck.model.CheckPoint;
 @Service
 public class NotifierGateway {
 	private static Logger log = LogManager.getLogger(NotifierGateway.class);
-	final Double connectionIssueThreshold = 0.50;
+	final Double connectionIssueThreshold = 0.45;
 	private Map<String, CheckPoint> pointsNotAvail = new HashMap<String, CheckPoint>();
 	private EmailNotifier emailNotifier;
 	private Boolean connectionIssues = Boolean.FALSE;
