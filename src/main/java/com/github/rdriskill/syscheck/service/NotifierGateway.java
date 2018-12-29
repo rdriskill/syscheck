@@ -25,7 +25,9 @@ public class NotifierGateway {
 	private Boolean connectionIssues = Boolean.FALSE;
 	
 	public void notifyNotAvailable(Map<CheckPoint, String> notifyNotAvailable, Integer totalCheckPointCount) {
-		if (totalCheckPointCount > 0 && (notifyNotAvailable.size() / totalCheckPointCount >= connectionIssueThreshold)) {
+		final Double percentNotAvailable = Double.valueOf(notifyNotAvailable.size()) / Double.valueOf(totalCheckPointCount);
+		
+		if (percentNotAvailable >= connectionIssueThreshold) {
 			String msg = String.format("%s out of %s checkpoints have failed. Either there is a connection issue or a catastrophic failure.", notifyNotAvailable.size(), totalCheckPointCount);
 			log.warn(msg);
 			
