@@ -22,7 +22,6 @@ import org.apache.http.HttpResponse;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,6 +30,7 @@ import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.rdriskill.syscheck.AppConfig;
 import com.github.rdriskill.syscheck.model.CheckPoint;
 import com.github.rdriskill.syscheck.model.CheckPointType;
 
@@ -43,6 +43,7 @@ public class CheckPointProcessor {
 	private Collection<CheckPoint> checkPoints = new HashSet<CheckPoint>();
 	private NotifierGateway notifier;
 	private String checkpointFilePath;
+	private HttpClient httpClient;
 	
 	@Scheduled(initialDelay=10000, fixedRate=180000)
 	private void checkAvailability() {
@@ -61,6 +62,7 @@ public class CheckPointProcessor {
 					    Connection conn = DriverManager.getConnection(checkPoint.getUrl(), checkPoint.getUser(), checkPoint.getPassword());
 						Statement stmt = conn.createStatement();
 					) {
+						stmt.setQueryTimeout(AppConfig.TIMEOUT_SECS /1000);
 						ResultSet resultSet = stmt.executeQuery("select 1");
 						
 						if (!resultSet.next() || !resultSet.getString(1).equals("1")) {
@@ -73,8 +75,7 @@ public class CheckPointProcessor {
 					}
 				} else if (checkPoint.getType().equals(CheckPointType.WEB)) {
 					try {
-						HttpClient client = HttpClientBuilder.create().build(); 
-						HttpResponse response = client.execute(new HttpGet(checkPoint.getUrl()));
+						HttpResponse response = httpClient.execute(new HttpGet(checkPoint.getUrl()));
 					    
 						if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
 							notifyNotAvailable.put(checkPoint, String.format("Received the status code %s for %s", response.getStatusLine().getStatusCode(), checkPoint.getName()));
@@ -140,5 +141,10 @@ public class CheckPointProcessor {
 
 	public void setCheckpointFilePath(String checkpointFilePath) {
 		this.checkpointFilePath = checkpointFilePath;
+	}
+
+	@Autowired
+	public void setHttpClient(HttpClient httpClient) {
+		this.httpClient = httpClient;
 	}
 }
