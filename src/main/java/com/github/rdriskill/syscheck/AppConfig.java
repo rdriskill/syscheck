@@ -23,7 +23,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @PropertySource("classpath:application.properties")
 public class AppConfig {
 	
-	public static final int TIMEOUT_SECS = 10 * 1000;
+	public static final int TIMEOUT_SECS = 20 * 1000;
 
 	@Bean
     public Executor taskExecutor() {

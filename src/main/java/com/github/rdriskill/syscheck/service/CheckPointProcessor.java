@@ -75,13 +75,16 @@ public class CheckPointProcessor {
 					}
 				} else if (checkPoint.getType().equals(CheckPointType.WEB)) {
 					try {
-						HttpResponse response = httpClient.execute(new HttpGet(checkPoint.getUrl()));
+						HttpGet request = new HttpGet(checkPoint.getUrl());
+						HttpResponse response = httpClient.execute(request);
 					    
 						if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
 							notifyNotAvailable.put(checkPoint, String.format("Received the status code %s for %s", response.getStatusLine().getStatusCode(), checkPoint.getName()));
 						} else {
 							notifyAvailable.add(checkPoint);
 						}
+						
+						request.releaseConnection();
 					} catch (Exception ex) {
 						notifyNotAvailable.put(checkPoint, String.format("Error connecting for %s: %s", checkPoint.getName(), ex.getMessage()));
 					}
