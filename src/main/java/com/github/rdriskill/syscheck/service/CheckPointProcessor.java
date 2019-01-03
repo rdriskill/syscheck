@@ -96,7 +96,7 @@ public class CheckPointProcessor {
 		
 		this.notifier.notifyNotAvailable(notifyNotAvailable, this.checkPoints.size());
 		this.notifier.notifyAvailable(notifyAvailable);
-		log.info(String.format("Completed check point availability test. %s currently failing.", this.notifier.getCheckPointsInFailure().size()));
+		log.info(String.format("Completed check point availability test. %s currently failing.", this.notifier.getCurrentFailureCount()));
 	}
 	
     private void loadCheckpointFile() {

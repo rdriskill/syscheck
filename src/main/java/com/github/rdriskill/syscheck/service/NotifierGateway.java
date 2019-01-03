@@ -1,5 +1,7 @@
 package com.github.rdriskill.syscheck.service;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -9,9 +11,12 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
 import com.github.rdriskill.syscheck.model.CheckPoint;
+import com.github.rdriskill.syscheck.model.CheckPointHistory;
+import com.github.rdriskill.syscheck.model.CheckPointStatus;
 
 /**
  * @author rdriskill
@@ -20,12 +25,16 @@ import com.github.rdriskill.syscheck.model.CheckPoint;
 public class NotifierGateway {
 	private static Logger log = LogManager.getLogger(NotifierGateway.class);
 	final Double connectionIssueThreshold = 0.45;
-	private Map<String, CheckPoint> pointsNotAvail = new HashMap<String, CheckPoint>();
+	private Map<String, Collection<CheckPointHistory>> failuresByCheckpointName = new HashMap<String, Collection<CheckPointHistory>>();
 	private EmailNotifier emailNotifier;
 	private Boolean connectionIssues = Boolean.FALSE;
+	private Environment env;
+	
+	private final String defaultFailuresBeforeNotifying = "1";
 	
 	public void notifyNotAvailable(Map<CheckPoint, String> notifyNotAvailable, Integer totalCheckPointCount) {
 		final Double percentNotAvailable = Double.valueOf(notifyNotAvailable.size()) / Double.valueOf(totalCheckPointCount);
+		final Integer failuresBeforeNotifying = Integer.valueOf(env.getProperty("failuresBeforeNotifying", defaultFailuresBeforeNotifying));
 		
 		if (percentNotAvailable >= connectionIssueThreshold) {
 			String msg = String.format("%s out of %s checkpoints have failed. Either there is a connection issue or a catastrophic failure.", notifyNotAvailable.size(), totalCheckPointCount);
@@ -46,33 +55,50 @@ public class NotifierGateway {
 			Optional.ofNullable(notifyNotAvailable).ifPresent(map -> map.entrySet().forEach(entry -> {
 				CheckPoint checkPoint = entry.getKey();
 				String msg = entry.getValue();
+				log.warn(msg);
 				
-				if (!this.pointsNotAvail.containsKey(checkPoint.getName())) {
-					log.warn(msg);
-					emailNotifier.sendEmail(msg);
-					this.pointsNotAvail.put(checkPoint.getName(), checkPoint);
+				if (!this.failuresByCheckpointName.containsKey(checkPoint.getName())) {
+					this.failuresByCheckpointName.put(checkPoint.getName(), new ArrayList<CheckPointHistory>(Arrays.asList(new CheckPointHistory(checkPoint, CheckPointStatus.FAILURE, msg))));
+				} else { // already failed once, so lets notify
+					this.failuresByCheckpointName.get(checkPoint.getName()).add(new CheckPointHistory(checkPoint, CheckPointStatus.FAILURE, msg));
+					
+					if (this.failuresByCheckpointName.get(checkPoint.getName()).size() == failuresBeforeNotifying) {
+						emailNotifier.sendEmail(msg);
+					}
 				}
 			}));
 		}
 	}
 	
 	public void notifyAvailable(Set<CheckPoint> notifyAvailable) {
+		final Integer failuresBeforeNotifying = Integer.valueOf(env.getProperty("failuresBeforeNotifying", defaultFailuresBeforeNotifying));
+		
 		Optional.ofNullable(notifyAvailable).ifPresent(stream -> stream.forEach(checkPoint -> {
-			if (this.pointsNotAvail.containsKey(checkPoint.getName())) {
-				String msg = String.format("%s has recovered.", checkPoint.getName());
+			if (this.failuresByCheckpointName.containsKey(checkPoint.getName())) {
+				Collection<CheckPointHistory> history = this.failuresByCheckpointName.get(checkPoint.getName());
+				String msg = String.format("%s has recovered from %s prior failures", checkPoint.getName(), history.size());
 				log.info(msg);
-				emailNotifier.sendEmail(msg);
-				this.pointsNotAvail.remove(checkPoint.getName());
+				
+				if (history.size() >= failuresBeforeNotifying) {
+					emailNotifier.sendEmail(msg);
+				}
+				
+				this.failuresByCheckpointName.remove(checkPoint.getName());
 			}
 		}));
 	}
 	
-	public Collection<CheckPoint> getCheckPointsInFailure() {
-		return this.pointsNotAvail.values();
+	public int getCurrentFailureCount() {
+		return this.failuresByCheckpointName.size();
 	}
 
 	@Autowired
 	public void setEmailNotifier(EmailNotifier emailNotifier) {
 		this.emailNotifier = emailNotifier;
+	}
+
+	@Autowired
+	public void setEnv(Environment env) {
+		this.env = env;
 	}
 }
