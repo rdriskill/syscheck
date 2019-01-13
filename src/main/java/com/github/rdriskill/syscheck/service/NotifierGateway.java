@@ -1,7 +1,6 @@
 package com.github.rdriskill.syscheck.service;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,11 +29,9 @@ public class NotifierGateway {
 	private Boolean connectionIssues = Boolean.FALSE;
 	private Environment env;
 	
-	private final String defaultFailuresBeforeNotifying = "1";
-	
 	public void notifyNotAvailable(Map<CheckPoint, String> notifyNotAvailable, Integer totalCheckPointCount) {
 		final Double percentNotAvailable = Double.valueOf(notifyNotAvailable.size()) / Double.valueOf(totalCheckPointCount);
-		final Integer failuresBeforeNotifying = Integer.valueOf(env.getProperty("failuresBeforeNotifying", defaultFailuresBeforeNotifying));
+		final Integer failuresBeforeNotifying = this.getFailuresBeforeNotifying();
 		
 		if (percentNotAvailable >= connectionIssueThreshold) {
 			String msg = String.format("%s out of %s checkpoints have failed. Either there is a connection issue or a catastrophic failure.", notifyNotAvailable.size(), totalCheckPointCount);
@@ -58,20 +55,20 @@ public class NotifierGateway {
 				log.warn(msg);
 				
 				if (!this.failuresByCheckpointName.containsKey(checkPoint.getName())) {
-					this.failuresByCheckpointName.put(checkPoint.getName(), new ArrayList<CheckPointHistory>(Arrays.asList(new CheckPointHistory(checkPoint, CheckPointStatus.FAILURE, msg))));
-				} else { // already failed once, so lets notify
-					this.failuresByCheckpointName.get(checkPoint.getName()).add(new CheckPointHistory(checkPoint, CheckPointStatus.FAILURE, msg));
-					
-					if (this.failuresByCheckpointName.get(checkPoint.getName()).size() == failuresBeforeNotifying) {
-						emailNotifier.sendEmail(msg);
-					}
+					this.failuresByCheckpointName.put(checkPoint.getName(), new ArrayList<CheckPointHistory>());
+				}
+				
+				this.failuresByCheckpointName.get(checkPoint.getName()).add(new CheckPointHistory(checkPoint, CheckPointStatus.FAILURE, msg));
+				
+				if (this.failuresByCheckpointName.get(checkPoint.getName()).size() == failuresBeforeNotifying) {
+					emailNotifier.sendEmail(msg);
 				}
 			}));
 		}
 	}
 	
 	public void notifyAvailable(Set<CheckPoint> notifyAvailable) {
-		final Integer failuresBeforeNotifying = Integer.valueOf(env.getProperty("failuresBeforeNotifying", defaultFailuresBeforeNotifying));
+		final Integer failuresBeforeNotifying = this.getFailuresBeforeNotifying();
 		
 		Optional.ofNullable(notifyAvailable).ifPresent(stream -> stream.forEach(checkPoint -> {
 			if (this.failuresByCheckpointName.containsKey(checkPoint.getName())) {
@@ -100,5 +97,9 @@ public class NotifierGateway {
 	@Autowired
 	public void setEnv(Environment env) {
 		this.env = env;
+	}
+	
+	private Integer getFailuresBeforeNotifying() {
+		return Integer.valueOf(env.getProperty("app.failuresBeforeNotifying", "1"));
 	}
 }
